@@ -1,5 +1,16 @@
 #pragma once
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <time.h>
+#include <thread>
 #include <atomic>
+#include "ch_bmp.h"
+#include "ch_math.h"
+#include "pathingman_math.h"
+#include "pathingman_utils.h"
+#include "scene.h"
 
 struct image
 {

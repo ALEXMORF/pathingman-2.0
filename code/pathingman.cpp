@@ -2,24 +2,16 @@
 
  TODO:
  
-. Multithreading
+. change scene.h to use stretchy buffer
 . OBJ loading
-. Mesh intersection
+. hotload config (window size, sample count)
+ . scene file config (hotload)
 . BVH
 
 */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <time.h>
-#include <thread>
-#include "ch_bmp.h"
-#include "pathingman_math.h"
 #include "pathingman.h"
-#include "scene.h"
-
-#define ARRAY_COUNT(Array) sizeof(Array)/sizeof((Array)[0])
+#include "scene.cpp"
 
 f32 Random()
 {
@@ -72,7 +64,44 @@ TracePathRadiance(v3 Ro, v3 Rd)
         f32 MinT = F32Max;
         v3 NextN = {};
         
-        for (int PlaneIndex = 0; PlaneIndex < ARRAY_COUNT(Planes); ++PlaneIndex)
+        for (int TriangleIndex = 0; TriangleIndex < BufLen(Triangles); ++TriangleIndex)
+        {
+            triangle Tri = Triangles[TriangleIndex];
+            
+            v3 E02 = Tri.E[2] - Tri.E[0];
+            v3 E12 = Tri.E[2] - Tri.E[1];
+            v3 ERo2 = Tri.E[2] - Ro;
+            
+            v3 Term2 = Cross(Rd, E02);
+            
+            f32 Denom = Dot(Term2, E12);
+            if (Denom != 0.0f)
+            {
+                v3 Term1 = Cross(ERo2, E12);
+                f32 U = Dot(Term1, Rd) / Denom;
+                f32 V = Dot(Term2, ERo2) / Denom;
+                
+                if (U >= 0.0f && V >= 0.0f && U + V < 1.0f) 
+                {
+                    f32 T = Dot(-Term1, E02) / Denom;
+                    if (T > Tolerance && T < MinT)
+                    {
+                        MinT = T;
+                        MatIndex = Tri.MatIndex;
+                        
+                        NextN = Tri.N;
+#if TRIANGLE_DOUBLE_FACE
+                        if (Dot(NextN, Rd) > 0.0f)
+                        {
+                            NextN = -NextN;
+                        }
+#endif
+                    }
+                }
+            }
+        }
+        
+        for (int PlaneIndex = 0; PlaneIndex < BufLen(Planes); ++PlaneIndex)
         {
             plane Plane = Planes[PlaneIndex];
             
@@ -89,7 +118,7 @@ TracePathRadiance(v3 Ro, v3 Rd)
             }
         }
         
-        for (int SphereIndex = 0; SphereIndex < ARRAY_COUNT(Spheres); ++SphereIndex)
+        for (int SphereIndex = 0; SphereIndex < BufLen(Spheres); ++SphereIndex)
         {
             sphere Sphere = Spheres[SphereIndex];
             
@@ -130,7 +159,7 @@ TracePathRadiance(v3 Ro, v3 Rd)
     return Radiance;
 }
 
-void RenderTile(image_tile ImageTile, int SampleCount)
+void RenderTile(image_tile ImageTile)
 {
     int ImageWidth = ImageTile.Image->Width;
     int ImageHeight = ImageTile.Image->Height;
@@ -165,28 +194,42 @@ void RenderTile(image_tile ImageTile, int SampleCount)
     }
 }
 
-void WorkOnTiles(image_tile_queue *TileQueue, int SampleCount)
+void WorkOnTiles(image_tile_queue *TileQueue)
 {
     while (TileQueue->NextTile.load() < TileQueue->TileCount)
     {
         int TileIndex = TileQueue->NextTile++;
         
         image_tile Tile = TileQueue->Tiles[TileIndex];
-        RenderTile(Tile, SampleCount);
+        RenderTile(Tile);
         
         TileQueue->TilesCompleted++;
         printf("\rTiles done: %d/%d", TileQueue->TilesCompleted.load(), TileQueue->TileCount);
     }
 }
 
+void RunTests()
+{
+    int *Array = 0;
+    BufPush(Array, 1);
+    BufPush(Array, 2);
+    BufPush(Array, 3);
+    BufPush(Array, 4);
+    
+    int *Last = BufLast(Array);
+    ASSERT(*Last == 4);
+    ASSERT(BufLen(Array) == 4);
+}
+
 int main()
 {
+    RunTests();
+    
     //image buffer init
     image Image = {};
     Image.Width = 1080;
     Image.Height = 724;
     Image.Buffer = (u32 *)malloc(sizeof(u32) * Image.Width * Image.Height);
-    int SampleCount = 2048;
     
     //system init
     srand((unsigned int)time(0));
@@ -231,7 +274,7 @@ int main()
     std::thread *WorkerThreads = (std::thread *)calloc(CoreCount, sizeof(std::thread));
     for (int ThreadIndex = 0; ThreadIndex < CoreCount; ++ThreadIndex)
     {
-        WorkerThreads[ThreadIndex] = std::thread(WorkOnTiles, &TileQueue, SampleCount);
+        WorkerThreads[ThreadIndex] = std::thread(WorkOnTiles, &TileQueue);
     }
     for (int ThreadIndex = 0; ThreadIndex < CoreCount; ++ThreadIndex)
     {

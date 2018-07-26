@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ch_math.h"
-
 v3 Power(v3 V, f32 Exp)
 {
     v3 Result;
