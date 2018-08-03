@@ -2,15 +2,17 @@
 
  TODO:
  
-. change scene.h to use stretchy buffer
-. OBJ loading
+. BVH on triangles
+. use SAH
+. linearize BVH
+. faster custom rand() 
 . hotload config (window size, sample count)
  . scene file config (hotload)
-. BVH
-
+ 
 */
 
 #include "pathingman.h"
+#include "asset.cpp"
 #include "scene.cpp"
 
 f32 Random()
@@ -51,6 +53,129 @@ v3 CosineDistrib(v3 N)
     return SpherePoint;
 }
 
+inline bool
+IntersectAABB(v3 Ro, v3 Rd, aabb Bound)
+{
+    f32 MinT = -F32Max;
+    f32 MaxT = F32Max;
+    
+    if (Rd.X != 0.0f)
+    {
+        f32 T0X = (Bound.Min.X - Ro.X) / Rd.X;
+        f32 T1X = (Bound.Max.X - Ro.X) / Rd.X;
+        
+        if (T0X > T1X) 
+        {
+            std::swap(T0X, T1X);
+        }
+        
+        MinT = Max(T0X, MinT);
+        MaxT = Min(T1X, MaxT);
+    }
+    
+    if (Rd.Y != 0.0f)
+    {
+        f32 T0Y = (Bound.Min.Y - Ro.Y) / Rd.Y;
+        f32 T1Y = (Bound.Max.Y - Ro.Y) / Rd.Y;
+        
+        if (T0Y > T1Y) 
+        {
+            std::swap(T0Y, T1Y);
+        }
+        
+        MinT = Max(T0Y, MinT);
+        MaxT = Min(T1Y, MaxT);
+    }
+    
+    if (Rd.Z != 0.0f)
+    {
+        f32 T0Z = (Bound.Min.Z - Ro.Z) / Rd.Z;
+        f32 T1Z = (Bound.Max.Z - Ro.Z) / Rd.Z;
+        
+        if (T0Z > T1Z) 
+        {
+            std::swap(T0Z, T1Z);
+        }
+        
+        MinT = Max(T0Z, MinT);
+        MaxT = Min(T1Z, MaxT);
+    }
+    
+    return MaxT >= MinT;
+}
+
+inline f32
+IntersectTriangle(v3 Ro, v3 Rd, triangle *Tri, f32 MinT, int *MatIndex, v3 *NextN)
+{
+    f32 Tolerance = 0.00001f;
+    
+    v3 E02 = Tri->E[2] - Tri->E[0];
+    v3 E12 = Tri->E[2] - Tri->E[1];
+    v3 ERo2 = Tri->E[2] - Ro;
+    
+    v3 Term2 = Cross(Rd, E02);
+    
+    f32 Denom = Dot(Term2, E12);
+    if (Denom != 0.0f)
+    {
+        v3 Term1 = Cross(ERo2, E12);
+        f32 U = Dot(Term1, Rd) / Denom;
+        f32 V = Dot(Term2, ERo2) / Denom;
+        
+        if (U >= 0.0f && V >= 0.0f && U + V < 1.0f) 
+        {
+            f32 T = Dot(-Term1, E02) / Denom;
+            if (T > Tolerance && T < MinT)
+            {
+                MinT = T;
+                *MatIndex = Tri->MatIndex;
+                
+                *NextN = Tri->N;
+#if TRIANGLE_DOUBLE_FACE
+                if (Dot(*NextN, Rd) > 0.0f)
+                {
+                    *NextN = -*NextN;
+                }
+#endif
+            }
+        }
+    }
+    
+    return MinT;
+}
+
+f32 
+IntersectBvh(bvh_node *Node, v3 Ro, v3 Rd, f32 MinT, int *MatIndex, v3 *NextN)
+{
+    if (!Node)
+    {
+        return MinT;
+    }
+    
+    //TODO(chen): test ray against node->bound
+    if (IntersectAABB(Ro, Rd, Node->Bound))
+    {
+        if (Node->Left || Node->Right) // is intermediate node
+        {
+            MinT = IntersectBvh(Node->Left, Ro, Rd, MinT, MatIndex, NextN);
+            MinT = IntersectBvh(Node->Right, Ro, Rd, MinT, MatIndex, NextN);
+            return MinT;
+        }
+        else // is leaf node
+        {
+            for (int TriIndex = 0; TriIndex < Node->PrimitiveCount; ++TriIndex)
+            {
+                MinT = IntersectTriangle(Ro, Rd, 
+                                         Node->Primitives + TriIndex, 
+                                         MinT, MatIndex, NextN);
+            }
+            return MinT;
+        }
+    }
+    
+    return MinT;
+}
+
 inline v3 
 TracePathRadiance(v3 Ro, v3 Rd)
 {
@@ -60,50 +185,24 @@ TracePathRadiance(v3 Ro, v3 Rd)
     v3 Atten = V3(1);
     for (int BounceIndex = 0; BounceIndex < 8; ++BounceIndex)
     {
-        int MatIndex = NullMatIndex;
+        int MatIndex = Scene.NullMatIndex;
         f32 MinT = F32Max;
         v3 NextN = {};
         
-        for (int TriangleIndex = 0; TriangleIndex < BufLen(Triangles); ++TriangleIndex)
+#if 1
+        MinT = IntersectBvh(Scene.Root, Ro, Rd, MinT, &MatIndex, &NextN);
+#else
+        for (int TriangleIndex = 0; TriangleIndex < BufLen(Scene.Triangles); ++TriangleIndex)
         {
-            triangle Tri = Triangles[TriangleIndex];
-            
-            v3 E02 = Tri.E[2] - Tri.E[0];
-            v3 E12 = Tri.E[2] - Tri.E[1];
-            v3 ERo2 = Tri.E[2] - Ro;
-            
-            v3 Term2 = Cross(Rd, E02);
-            
-            f32 Denom = Dot(Term2, E12);
-            if (Denom != 0.0f)
-            {
-                v3 Term1 = Cross(ERo2, E12);
-                f32 U = Dot(Term1, Rd) / Denom;
-                f32 V = Dot(Term2, ERo2) / Denom;
-                
-                if (U >= 0.0f && V >= 0.0f && U + V < 1.0f) 
-                {
-                    f32 T = Dot(-Term1, E02) / Denom;
-                    if (T > Tolerance && T < MinT)
-                    {
-                        MinT = T;
-                        MatIndex = Tri.MatIndex;
-                        
-                        NextN = Tri.N;
-#if TRIANGLE_DOUBLE_FACE
-                        if (Dot(NextN, Rd) > 0.0f)
-                        {
-                            NextN = -NextN;
-                        }
-#endif
-                    }
-                }
-            }
+            MinT = IntersectTriangle(Ro, Rd, 
+                                     Scene.Triangles + TriangleIndex, 
+                                     MinT, &MatIndex, &NextN);
         }
+#endif
         
-        for (int PlaneIndex = 0; PlaneIndex < BufLen(Planes); ++PlaneIndex)
+        for (int PlaneIndex = 0; PlaneIndex < BufLen(Scene.Planes); ++PlaneIndex)
         {
-            plane Plane = Planes[PlaneIndex];
+            plane Plane = Scene.Planes[PlaneIndex];
             
             f32 Denom = Dot(Rd, Plane.N);
             if (Denom != 0)
@@ -118,9 +217,9 @@ TracePathRadiance(v3 Ro, v3 Rd)
             }
         }
         
-        for (int SphereIndex = 0; SphereIndex < BufLen(Spheres); ++SphereIndex)
+        for (int SphereIndex = 0; SphereIndex < BufLen(Scene.Spheres); ++SphereIndex)
         {
-            sphere Sphere = Spheres[SphereIndex];
+            sphere Sphere = Scene.Spheres[SphereIndex];
             
             f32 A = Dot(Rd, Rd);
             f32 B = 2.0f * Dot(Ro - Sphere.P, Rd);
@@ -142,10 +241,10 @@ TracePathRadiance(v3 Ro, v3 Rd)
             }
         }
         
-        Radiance += Atten * Mats[MatIndex].Emission;
-        if (MatIndex != NullMatIndex)
+        Radiance += Atten * Scene.Mats[MatIndex].Emission;
+        if (MatIndex != Scene.NullMatIndex)
         {
-            Atten *= Mats[MatIndex].RefColor;
+            Atten *= Scene.Mats[MatIndex].RefColor;
             
             Ro = Ro + MinT*Rd;
             Rd = CosineDistrib(NextN);
@@ -164,9 +263,7 @@ void RenderTile(image_tile ImageTile)
     int ImageWidth = ImageTile.Image->Width;
     int ImageHeight = ImageTile.Image->Height;
     
-    v3 At = {0, 1, 0};
-    v3 Ro = {0, 2.0f, -3.0f};
-    v3 CamZ = Normalize(At - Ro);
+    v3 CamZ = Normalize(Scene.CamLookAt - Scene.CamRo);
     v3 CamX = Normalize(Cross(YAxis(), CamZ));
     v3 CamY = Cross(CamZ, CamX);
     f32 AR = (f32)ImageWidth / (f32)ImageHeight;
@@ -175,19 +272,21 @@ void RenderTile(image_tile ImageTile)
     {
         for (int X = ImageTile.MinX; X < ImageTile.MaxX; ++X)
         {
-            v2 UV = {(f32)X / (f32)ImageWidth, (f32)Y / (f32)ImageHeight};
-            UV = 2.0f * UV - V2(1.0f);
-            UV.X *= AR;
-            v3 Rd = CamX * UV.X + CamY * UV.Y + 2.0f * CamZ;
-            
-            f32 SampleContrib = 1.0f / (f32)SampleCount;
+            f32 SampleContrib = 1.0f / (f32)Scene.SampleCount;
             v3 Radiance = {};
-            for (int I = 0; I < SampleCount; ++I)
+            for (int I = 0; I < Scene.SampleCount; ++I)
             {
-                Radiance += SampleContrib * TracePathRadiance(Ro, Rd);
+                v2 UVJitter = V2(0.5f - Random(), 0.5f - Random());
+                v2 UV = V2(((f32)X + 0.5f + UVJitter.X) / (f32)ImageWidth, 
+                           ((f32)Y + 0.5f + UVJitter.Y) / (f32)ImageHeight);
+                UV = 2.0f * UV - V2(1.0f);
+                UV.X *= AR;
+                v3 Rd = CamX * UV.X + CamY * UV.Y + 2.0f * CamZ;
+                
+                Radiance += SampleContrib * TracePathRadiance(Scene.CamRo, Rd);
             }
             
-            Radiance = V3(1) - Exp(-2.0f*Radiance);
+            Radiance = V3(1) - Exp(-1.0f*Radiance);
             Radiance = Power(Radiance, 1.0f / 2.2f);
             ImageTile.Image->Buffer[Y*ImageWidth + X] = PackV3IntoRGB(Radiance);
         }
@@ -219,6 +318,8 @@ void RunTests()
     int *Last = BufLast(Array);
     ASSERT(*Last == 4);
     ASSERT(BufLen(Array) == 4);
+    
+    BufFree(Array);
 }
 
 int main()
@@ -244,9 +345,16 @@ int main()
         printf("Unable to detect number of cores, assuming 1 core\n");
     }
     
+    clock_t scene_t = clock();
+    printf("\ninitializing scene ...\n");
+    
     InitScene();
     
-    clock_t t = clock();
+    scene_t = clock() - scene_t;
+    printf("scene init took %f seconds\n", (f32)scene_t / (f32)CLOCKS_PER_SEC);
+    
+    clock_t render_t = clock();
+    printf("\nrendering scene ...\n");
     
     int TileWidth = 64;
     int TileHeight = 64;
@@ -281,8 +389,8 @@ int main()
         WorkerThreads[ThreadIndex].join();
     }
     
-    t = clock() - t;
-    printf("\nRender took %f seconds\n", (f32)t / (f32)CLOCKS_PER_SEC);
+    render_t = clock() - render_t;
+    printf("\nscene rendered in %f seconds\n", (f32)render_t / (f32)CLOCKS_PER_SEC);
     
     CH_BMP::WriteImageToBMP("render.bmp", Image.Buffer, Image.Width, Image.Height);
     return 0;

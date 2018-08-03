@@ -16,22 +16,34 @@ struct sphere
     int MatIndex;
 };
 
-struct triangle
+struct bvh_node
 {
-    v3 E[3];
-    v3 N;
-    int MatIndex;
+    aabb Bound;
+    bvh_node *Left;
+    bvh_node *Right;
+    
+    triangle *Primitives;
+    int PrimitiveCount;
 };
 
-struct material
+struct scene
 {
-    v3 RefColor;
-    v3 Emission;
+    int SampleCount;
+    int NullMatIndex;
+    
+    v3 CamRo;
+    v3 CamLookAt;
+    
+    material *Mats;
+    plane *Planes;
+    sphere *Spheres;
+    triangle *Triangles;
+    
+    bvh_node *Root;
 };
 
-int SampleCount = 0;
-int NullMatIndex = 0;
-static material *Mats;
-static plane *Planes;
-static sphere *Spheres;
-static triangle *Triangles;
+typedef int triangle_compare(const void *A, const void *B);
+triangle_compare *TriangleCompares[3];
+
+static asset_map Assets;
+static scene Scene;

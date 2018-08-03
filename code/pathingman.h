@@ -10,6 +10,7 @@
 #include "ch_math.h"
 #include "pathingman_math.h"
 #include "pathingman_utils.h"
+#include "asset.h"
 #include "scene.h"
 
 struct image

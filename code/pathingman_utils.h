@@ -14,7 +14,8 @@ struct buf_header
 
 #define BufGrow(B) (B) = (decltype(B))__BufGrow(B, sizeof(*B))
 #define BufFit1(B) (BufCap(B) < BufLen(B)+1? BufGrow(B): 0)
-#define BufPush(B, Elem) (BufFit1(B), B[BufHeader(B)->Len++] = Elem)
+#define BufPush(B, Elem) (BufFit1(B), B[BufHeader(B)->Len++] = (Elem))
+#define BufFree(B) free(BufHeader(B))
 
 #define BufLast(B) ((B)? B + (BufLen(B)-1): 0)
 

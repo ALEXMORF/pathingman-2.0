@@ -57,7 +57,7 @@ union v3
         f32 B;
     };
     
-    f32 Data[3];
+    f32 E[3];
 };
 
 struct v3i
@@ -795,9 +795,9 @@ operator*(v3 B, mat3 A)
         f32 Sum = 0.0f;
         for (i32 I = 0; I < 3; ++I)
         {
-            Sum += A.Data[I][Col] * B.Data[I];
+            Sum += A.Data[I][Col] * B.E[I];
         }
-        Result.Data[Col] = Sum;
+        Result.E[Col] = Sum;
     }
     
     return Result;
