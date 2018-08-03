@@ -2,13 +2,13 @@
 
  TODO:
  
-. BVH on triangles
-. use SAH
-. linearize BVH
+. get materials
 . faster custom rand() 
 . hotload config (window size, sample count)
  . scene file config (hotload)
- 
+. use SAH
+. linearize BVH
+
 */
 
 #include "pathingman.h"

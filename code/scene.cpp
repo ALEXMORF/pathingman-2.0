@@ -204,10 +204,17 @@ void InitScene()
     Assets.Dir = "../data/";
     LoadAsset("box.obj");
     LoadAsset("tiger.obj");
+    LoadAsset("moose.obj");
+    LoadAsset("bigmouth.obj");
     LoadAsset("icosphere.obj");
     
     InstantiateMesh("tiger", V3(0.0f, 0.65f, 0.0f), 2.0f, 
                     Quaternion(YAxis(), 1.2f*Pi32));
+    InstantiateMesh("moose", V3(2.0f, -0.1f, 0.0f), 2.0f, 
+                    Quaternion(YAxis(), 0.0f*Pi32));
+    InstantiateMesh("bigmouth", V3(-2.0f, -0.1f, 0.0f), 2.0f, 
+                    Quaternion(YAxis(), 1.0f*Pi32));
+    
     //InstantiateMesh("icosphere", V3(0.0f, 1.2f, 0.0f));
     //InstantiateMesh("box", V3(1.7f, 0.0f, -0.3f), 0.5f);
     
