@@ -130,6 +130,12 @@ AllocateBvhNode()
     return (bvh_node *)calloc(1, sizeof(bvh_node));
 }
 
+inline b32
+IsLeaf(bvh_node *Node)
+{
+    return Node->Left == 0 && Node->Right == 0;
+}
+
 inline aabb 
 Union(aabb Bound, triangle Triangle)
 {
@@ -245,11 +251,15 @@ PartitionTriangles(triangle *Triangles, int TriangleCount)
         qsort(Triangles, TriangleCount, sizeof(triangle), 
               TriangleCompares[DominantAxis]);
         
-#if 1
-        int Middle = SAHSplit(Node, Triangles, TriangleCount, DominantAxis);
-#else
-        int Middle = TriangleCount / 2;
-#endif
+        int Middle = 0;
+        if (TriangleCount > 12)
+        {
+            Middle = SAHSplit(Node, Triangles, TriangleCount, DominantAxis);
+        }
+        else
+        {
+            Middle = TriangleCount / 2;
+        }
         int Rest = TriangleCount - Middle;
         
         if (Middle != 0 && Rest != 0) //if there is still something to partition
@@ -259,22 +269,59 @@ PartitionTriangles(triangle *Triangles, int TriangleCount)
         }
         else
         {
-            Node->Primitives = Triangles;
+            Node->PrimitiveOffset = int(Triangles - Scene.Triangles);
             Node->PrimitiveCount = TriangleCount;
         }
     }
     else //stop and make it leaf node
     {
-        Node->Primitives = Triangles;
+        Node->PrimitiveOffset = int(Triangles - Scene.Triangles);
         Node->PrimitiveCount = TriangleCount;
     }
     
     return Node;
 }
 
+void
+FlattenBvh(bvh_node *Node)
+{
+    if (Node)
+    {
+        bvh_linear_node LinearNode = {};
+        LinearNode.Bound = Node->Bound;
+        
+        if (IsLeaf(Node))
+        {
+            LinearNode.IsLeafNode = true;
+            
+            ASSERT(Node->PrimitiveCount < 1000); // make sure it fits in u16
+            LinearNode.PrimitiveOffset = Node->PrimitiveOffset;
+            LinearNode.PrimitiveCount = (u16)Node->PrimitiveCount;
+            
+            BufPush(Scene.LinearNodes, LinearNode);
+        }
+        else
+        {
+            LinearNode.IsLeafNode = false;
+            
+            //push it first
+            int CurrNodeIndex = BufLen(Scene.LinearNodes);
+            BufPush(Scene.LinearNodes, LinearNode);
+            
+            //push on left children (left recurring)
+            FlattenBvh(Node->Left);
+            
+            //after stack gets back, now add info about second child offset
+            Scene.LinearNodes[CurrNodeIndex].SecondChildOffset = BufLen(Scene.LinearNodes) - CurrNodeIndex;
+            
+            FlattenBvh(Node->Right);
+        }
+    }
+}
+
 void InitScene()
 {
-    Scene.SampleCount = 8;
+    Scene.SampleCount = 1;
     
     Scene.CamLookAt = {0, 1.0f, 0.0f};
     Scene.CamRo = {0, 1.8f, -3.0f};
@@ -299,12 +346,16 @@ void InitScene()
     LoadAsset("bigmouth.obj");
     LoadAsset("icosphere.obj");
     LoadAsset("sphinx.obj");
+    //LoadAsset("gaul.obj");
     printf("   loading assets done\n");
     
     printf("   instantiating meshes ...\n");
     //InstantiateMesh("tiger", V3(0.0f, 0.65f, 0.0f), 2.0f, Quaternion(YAxis(), 1.2f*Pi32));
-    InstantiateMesh("sphinx", V3(-1.0f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
-    InstantiateMesh("sphinx", V3(0.8f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
+    
+    //InstantiateMesh("sphinx", V3(-1.0f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
+    //InstantiateMesh("sphinx", V3(0.8f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
+    InstantiateMesh("sphinx", V3(0.0f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
+    //InstantiateMesh("gaul", V3(0.0f, 0.0f, 0.0f), 2.0f, Quaternion(YAxis(), 0.8f*Pi32));
     
     printf("   instantiating meshes done\n");
     
@@ -313,5 +364,6 @@ void InitScene()
     TriangleCompares[1] = TriangleCompareY;
     TriangleCompares[2] = TriangleCompareZ;
     Scene.Root = PartitionTriangles(Scene.Triangles, BufLen(Scene.Triangles));
+    FlattenBvh(Scene.Root);
     printf("   partitioning polygons done\n");
 }

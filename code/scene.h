@@ -28,8 +28,22 @@ struct bvh_node
     bvh_node *Left;
     bvh_node *Right;
     
-    triangle *Primitives;
+    int PrimitiveOffset;
     int PrimitiveCount;
+};
+
+struct bvh_linear_node
+{
+    aabb Bound;
+    union
+    {
+        i32 PrimitiveOffset;
+        i32 SecondChildOffset;
+    };
+    
+    u16 PrimitiveCount;
+    u8 IsLeafNode;
+    u8 Pad[1]; //ensures 32 bytes
 };
 
 struct scene
@@ -46,6 +60,7 @@ struct scene
     triangle *Triangles;
     
     bvh_node *Root;
+    bvh_linear_node *LinearNodes;
 };
 
 typedef int triangle_compare(const void *A, const void *B);

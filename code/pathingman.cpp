@@ -2,11 +2,10 @@
 
  TODO:
  
- . have a fallback split method after SAH
+. iteratively traverse the linear BVH
 . is middle index in SAH over by 1? investigate
-. linearize BVH
-. exploit MinT in BVH traversal
 . faster custom rand() 
+ . bound instances themselves and localize their BVH
 . render config (window size, sample count)
 
 */
@@ -54,7 +53,7 @@ v3 CosineDistrib(v3 N)
 }
 
 inline bool
-IntersectAABB(v3 Ro, v3 Rd, aabb Bound)
+IntersectAABBBool(v3 Ro, v3 Rd, aabb Bound)
 {
     f32 MinT = -F32Max;
     f32 MaxT = F32Max;
@@ -105,6 +104,65 @@ IntersectAABB(v3 Ro, v3 Rd, aabb Bound)
 }
 
 inline f32
+IntersectAABB(v3 Ro, v3 Rd, aabb Bound, f32 *MinT_Out)
+{
+    f32 MinT = -F32Max;
+    f32 MaxT = F32Max;
+    
+    if (Rd.X != 0.0f)
+    {
+        f32 T0X = (Bound.Min.X - Ro.X) / Rd.X;
+        f32 T1X = (Bound.Max.X - Ro.X) / Rd.X;
+        
+        if (T0X > T1X) 
+        {
+            std::swap(T0X, T1X);
+        }
+        
+        MinT = Max(T0X, MinT);
+        MaxT = Min(T1X, MaxT);
+    }
+    
+    if (Rd.Y != 0.0f)
+    {
+        f32 T0Y = (Bound.Min.Y - Ro.Y) / Rd.Y;
+        f32 T1Y = (Bound.Max.Y - Ro.Y) / Rd.Y;
+        
+        if (T0Y > T1Y) 
+        {
+            std::swap(T0Y, T1Y);
+        }
+        
+        MinT = Max(T0Y, MinT);
+        MaxT = Min(T1Y, MaxT);
+    }
+    
+    if (Rd.Z != 0.0f)
+    {
+        f32 T0Z = (Bound.Min.Z - Ro.Z) / Rd.Z;
+        f32 T1Z = (Bound.Max.Z - Ro.Z) / Rd.Z;
+        
+        if (T0Z > T1Z) 
+        {
+            std::swap(T0Z, T1Z);
+        }
+        
+        MinT = Max(T0Z, MinT);
+        MaxT = Min(T1Z, MaxT);
+    }
+    
+    *MinT_Out = MinT;
+    if (MaxT >= MinT)
+    {
+        return MaxT;
+    }
+    else
+    {
+        return -1.0f;
+    }
+}
+
+inline f32
 IntersectTriangle(v3 Ro, v3 Rd, triangle *Tri, f32 MinT, int *MatIndex, v3 *NextN)
 {
     f32 Tolerance = 0.00001f;
@@ -152,10 +210,11 @@ IntersectBvh(bvh_node *Node, v3 Ro, v3 Rd, f32 MinT, int *MatIndex, v3 *NextN)
         return MinT;
     }
     
-    //TODO(chen): test ray against node->bound
-    if (IntersectAABB(Ro, Rd, Node->Bound))
+    f32 BoundMinT;
+    f32 BoundMaxT = IntersectAABB(Ro, Rd, Node->Bound, &BoundMinT);
+    if (BoundMaxT > 0.0f && BoundMinT < MinT)
     {
-        if (Node->Left || Node->Right) // is intermediate node
+        if (!IsLeaf(Node)) // is intermediate node
         {
             MinT = IntersectBvh(Node->Left, Ro, Rd, MinT, MatIndex, NextN);
             MinT = IntersectBvh(Node->Right, Ro, Rd, MinT, MatIndex, NextN);
@@ -166,7 +225,37 @@ IntersectBvh(bvh_node *Node, v3 Ro, v3 Rd, f32 MinT, int *MatIndex, v3 *NextN)
             for (int TriIndex = 0; TriIndex < Node->PrimitiveCount; ++TriIndex)
             {
                 MinT = IntersectTriangle(Ro, Rd, 
-                                         Node->Primitives + TriIndex, 
+                                         Scene.Triangles + Node->PrimitiveOffset + TriIndex, 
+                                         MinT, MatIndex, NextN);
+            }
+            return MinT;
+        }
+    }
+    
+    return MinT;
+}
+
+f32 
+IntersectLinearBvh(bvh_linear_node *Nodes, int NodeIndex, v3 Ro, v3 Rd, f32 MinT, int *MatIndex, v3 *NextN)
+{
+    bvh_linear_node *Node = Nodes + NodeIndex;
+    
+    f32 BoundMinT;
+    f32 BoundMaxT = IntersectAABB(Ro, Rd, Node->Bound, &BoundMinT);
+    if (BoundMaxT > 0.0f && BoundMinT < MinT)
+    {
+        if (!Node->IsLeafNode) // is intermediate node
+        {
+            MinT = IntersectLinearBvh(Nodes, NodeIndex+1, Ro, Rd, MinT, MatIndex, NextN);
+            MinT = IntersectLinearBvh(Nodes, NodeIndex + Node->SecondChildOffset, Ro, Rd, MinT, MatIndex, NextN);
+            return MinT;
+        }
+        else // is leaf node
+        {
+            for (int TriIndex = 0; TriIndex < Node->PrimitiveCount; ++TriIndex)
+            {
+                MinT = IntersectTriangle(Ro, Rd, 
+                                         Scene.Triangles + Node->PrimitiveOffset + TriIndex, 
                                          MinT, MatIndex, NextN);
             }
             return MinT;
@@ -190,14 +279,9 @@ TracePathRadiance(v3 Ro, v3 Rd)
         v3 NextN = {};
         
 #if 1
-        MinT = IntersectBvh(Scene.Root, Ro, Rd, MinT, &MatIndex, &NextN);
+        MinT = IntersectLinearBvh(Scene.LinearNodes, 0, Ro, Rd, MinT, &MatIndex, &NextN);
 #else
-        for (int TriangleIndex = 0; TriangleIndex < BufLen(Scene.Triangles); ++TriangleIndex)
-        {
-            MinT = IntersectTriangle(Ro, Rd, 
-                                     Scene.Triangles + TriangleIndex, 
-                                     MinT, &MatIndex, &NextN);
-        }
+        MinT = IntersectBvh(Scene.Root, Ro, Rd, MinT, &MatIndex, &NextN);
 #endif
         
         for (int PlaneIndex = 0; PlaneIndex < BufLen(Scene.Planes); ++PlaneIndex)
