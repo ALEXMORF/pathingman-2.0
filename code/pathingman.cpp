@@ -2,11 +2,12 @@
 
  TODO:
  
+. exploit MinT in BVH traversal
+. use SAH for BVH partitioning
 . faster custom rand() 
 . render config (window size, sample count)
- . use SAH
-. linearize BVH
-
+ . linearize BVH
+ 
 */
 
 #include "pathingman.h"

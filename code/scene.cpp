@@ -148,7 +148,7 @@ PartitionTriangles(triangle *Triangles, int TriangleCount)
         Node->Bound.Max = Max(Node->Bound.Max, Triangle.E[2]);
     }
     
-    if (TriangleCount > 4) //keep partitioning
+    if (TriangleCount > 3) //keep partitioning
     {
         v3 BoundDiff = Node->Bound.Max - Node->Bound.Min;
         
@@ -194,12 +194,12 @@ void InitScene()
     
     BufPush(Scene.Mats, Mat(V3(0.6f))); // 1
     BufPush(Scene.Mats, Mat(V3(0.92f))); // 2
-    BufPush(Scene.Mats, Mat(V3(0.9f), V3(10))); // 3
+    BufPush(Scene.Mats, Mat(V3(0.9f), V3(25))); // 3
     BufPush(Scene.Mats, Mat(V3(0.9f, 0.6f, 0.2f))); // 4
     BufPush(Scene.Mats, Mat(V3(0.9f, 0.3f, 0.2f))); // 5
     
     BufPush(Scene.Planes, Plane(V3(0), YAxis(), 1));
-    BufPush(Scene.Spheres, Sphere(V3(-2.0f, 3.0f, 0.0f), 0.5f, 3));
+    BufPush(Scene.Spheres, Sphere(V3(0.0f, 3.0f, 0.0f), 0.5f, 3));
     
     printf("   loading assets ...\n");
     Assets.Dir = "../data/";
@@ -212,8 +212,8 @@ void InitScene()
     printf("   loading assets done\n");
     
     printf("   instantiating meshes ...\n");
-    InstantiateMesh("sphinx", V3(-0.1f, 0.0f, 0.0f), 0.8f,
-                    Quaternion(YAxis(), 0.8f*Pi32));
+    //InstantiateMesh("tiger", V3(0.0f, 0.65f, 0.0f), 2.0f, Quaternion(YAxis(), 1.2f*Pi32));
+    InstantiateMesh("sphinx", V3(-0.1f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
     
     printf("   instantiating meshes done\n");
     
