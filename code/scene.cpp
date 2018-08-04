@@ -262,6 +262,7 @@ PartitionTriangles(triangle *Triangles, int TriangleCount)
         }
         int Rest = TriangleCount - Middle;
         
+        Node->Axis = DominantAxis;
         if (Middle != 0 && Rest != 0) //if there is still something to partition
         {
             Node->Left = PartitionTriangles(Triangles, Middle);
@@ -292,8 +293,6 @@ FlattenBvh(bvh_node *Node)
         
         if (IsLeaf(Node))
         {
-            LinearNode.IsLeafNode = true;
-            
             ASSERT(Node->PrimitiveCount < 1000); // make sure it fits in u16
             LinearNode.PrimitiveOffset = Node->PrimitiveOffset;
             LinearNode.PrimitiveCount = (u16)Node->PrimitiveCount;
@@ -302,7 +301,7 @@ FlattenBvh(bvh_node *Node)
         }
         else
         {
-            LinearNode.IsLeafNode = false;
+            LinearNode.Axis = (u8)Node->Axis;
             
             //push it first
             int CurrNodeIndex = BufLen(Scene.LinearNodes);
@@ -321,15 +320,15 @@ FlattenBvh(bvh_node *Node)
 
 void InitScene()
 {
-    Scene.SampleCount = 1;
+    Scene.SampleCount = 256;
     
     Scene.CamLookAt = {0, 1.0f, 0.0f};
     Scene.CamRo = {0, 1.8f, -3.0f};
     
     Scene.NullMatIndex = 0;
-    BufPush(Scene.Mats, Mat(V3(0), V3(0.00f))); // null
+    BufPush(Scene.Mats, Mat(V3(0), V3(0.0f))); // null
     
-    BufPush(Scene.Mats, Mat(V3(0.6f))); // 1
+    BufPush(Scene.Mats, Mat(V3(0.9f), V3(0.0f))); // 1
     BufPush(Scene.Mats, Mat(V3(0.92f))); // 2
     BufPush(Scene.Mats, Mat(V3(0.9f), V3(25))); // 3
     BufPush(Scene.Mats, Mat(V3(0.9f, 0.6f, 0.2f))); // 4

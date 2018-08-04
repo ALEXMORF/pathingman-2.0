@@ -28,6 +28,7 @@ struct bvh_node
     bvh_node *Left;
     bvh_node *Right;
     
+    int Axis;
     int PrimitiveOffset;
     int PrimitiveCount;
 };
@@ -42,7 +43,7 @@ struct bvh_linear_node
     };
     
     u16 PrimitiveCount;
-    u8 IsLeafNode;
+    u8 Axis;
     u8 Pad[1]; //ensures 32 bytes
 };
 
