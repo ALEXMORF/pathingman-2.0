@@ -1,4 +1,4 @@
 # Pathingman 2.0
 
-![img](./data/pathingman.png)
+![Screenshot](./data/pathingman.png)
 
