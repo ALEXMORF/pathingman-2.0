@@ -39,6 +39,16 @@ AdvanceToNextLine(char *Input)
     return Input;
 }
 
+inline char*
+AdvanceToNextNonWhitespace(char *Input)
+{
+    while (*Input && *Input == '\n')
+    {
+        Input = Advance(Input);
+    }
+    return Input;
+}
+
 inline bool
 IsEqual(char *Str1, char *Str2)
 {
@@ -59,6 +69,48 @@ mesh *asset_map::operator[](char *Name)
     return Result;
 }
 
+named_material *ProcessMtlFile(char *MtlContent)
+{
+    named_material *Result = 0;
+    
+    char *MtlContentWalker = MtlContent;
+    while (*MtlContentWalker)
+    {
+        char LeadWord[255];
+        sscanf(MtlContentWalker, "%s", LeadWord);
+        
+        if (IsEqual(LeadWord, "newmtl"))
+        {
+            named_material NewMat = {};
+            
+            sscanf(MtlContentWalker, "newmtl %s", NewMat.Name);
+            MtlContentWalker = AdvanceToNextLine(MtlContentWalker);
+            while (*MtlContentWalker && *MtlContentWalker != '\n')
+            {
+                char MtlLeadWord[255];
+                sscanf(MtlContentWalker, "%s", MtlLeadWord);
+                
+                if (IsEqual(MtlLeadWord, "Kd"))
+                {
+                    sscanf(MtlContentWalker, "Kd %f %f %f", 
+                           &NewMat.E.RefColor.X, 
+                           &NewMat.E.RefColor.Y,
+                           &NewMat.E.RefColor.Z);
+                }
+                
+                MtlContentWalker = AdvanceToNextLine(MtlContentWalker);
+            }
+            
+            BufPush(Result, NewMat);
+        }
+        
+        MtlContentWalker = AdvanceToNextLine(MtlContentWalker);
+        MtlContentWalker = AdvanceToNextNonWhitespace(MtlContentWalker);
+    }
+    
+    return Result;
+}
+
 void LoadAsset(char *Filename)
 {
     char FilePath[255] = {};
@@ -72,6 +124,24 @@ void LoadAsset(char *Filename)
     v3 *Normals = 0;
     triangle *Triangles = 0;
     
+    named_material *LocalMats = 0;
+    {
+        ASSERT(!LocalMats);
+        
+        char MtlFilePath[255];
+        strcpy(MtlFilePath, Assets.Dir);
+        int FilenameLength = (int)(strrchr(Filename, '.') - Filename);
+        strncat(MtlFilePath, Filename, FilenameLength);
+        strcat(MtlFilePath, ".mtl");
+        char *MtlContent = ReadEntireFile(MtlFilePath);
+        ASSERT(MtlContent);
+        
+        LocalMats = ProcessMtlFile(MtlContent);
+        
+        free(MtlContent);
+    }
+    
+    int CurrMatIndex = -1;
     char *ObjContentWalker = ObjContent;
     while (*ObjContentWalker)
     {
@@ -103,16 +173,42 @@ void LoadAsset(char *Filename)
             NewTriangle.E[1] = Vertices[BIndex-1];
             NewTriangle.E[2] = Vertices[CIndex-1];
             NewTriangle.N = Normals[ANIndex-1];
-            NewTriangle.MatIndex = 4;
+            ASSERT(CurrMatIndex != -1);
+            NewTriangle.MatIndex = CurrMatIndex;
             
             BufPush(Triangles, NewTriangle);
+        }
+        else if (IsEqual(LeadWord, "usemtl"))
+        {
+            char MtlName[255];
+            sscanf(ObjContentWalker, "usemtl %s", MtlName);
+            
+            int SelectedMatIndex = -1;
+            for (int MatIndex = 0; MatIndex < BufLen(LocalMats); ++MatIndex)
+            {
+                if (IsEqual(MtlName, LocalMats[MatIndex].Name))
+                {
+                    SelectedMatIndex = MatIndex;
+                    break;
+                }
+            }
+            ASSERT(SelectedMatIndex != -1);
+            
+            CurrMatIndex = BufLen(Scene.Mats) + SelectedMatIndex;
         }
         
         ObjContentWalker = AdvanceToNextLine(ObjContentWalker);
     }
     
+    //push local mats onto global mats
+    for (int MatIndex = 0; MatIndex < BufLen(LocalMats); ++MatIndex)
+    {
+        BufPush(Scene.Mats, LocalMats[MatIndex].E);
+    }
+    
     BufFree(Vertices);
     BufFree(Normals);
+    BufFree(LocalMats);
     free(ObjContent);
     
     char *FileExtension = strrchr(Filename, '.');

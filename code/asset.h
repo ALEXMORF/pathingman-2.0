@@ -16,6 +16,12 @@ struct material
     v3 Emission;
 };
 
+struct named_material
+{
+    char Name[255];
+    material E;
+};
+
 struct mesh
 {
     triangle *E;

@@ -2,11 +2,9 @@
 
  TODO:
  
-. get materials
 . faster custom rand() 
-. hotload config (window size, sample count)
- . scene file config (hotload)
-. use SAH
+. render config (window size, sample count)
+ . use SAH
 . linearize BVH
 
 */
@@ -329,7 +327,7 @@ int main()
     //image buffer init
     image Image = {};
     Image.Width = 1080;
-    Image.Height = 724;
+    Image.Height = 742;
     Image.Buffer = (u32 *)malloc(sizeof(u32) * Image.Width * Image.Height);
     
     //system init
@@ -349,6 +347,7 @@ int main()
     printf("\ninitializing scene ...\n");
     
     InitScene();
+    printf("total triangle count: %d\n", BufLen(Scene.Triangles));
     
     scene_t = clock() - scene_t;
     printf("scene init took %f seconds\n", (f32)scene_t / (f32)CLOCKS_PER_SEC);

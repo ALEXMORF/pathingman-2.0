@@ -184,42 +184,51 @@ PartitionTriangles(triangle *Triangles, int TriangleCount)
 
 void InitScene()
 {
-    Scene.SampleCount = 1024;
+    Scene.SampleCount = 32;
     
     Scene.CamLookAt = {0, 1.0f, 0.0f};
-    Scene.CamRo = {0, 1.8f, -5.0f};
+    Scene.CamRo = {0, 1.8f, -3.0f};
     
     Scene.NullMatIndex = 0;
-    BufPush(Scene.Mats, Mat(V3(0), V3(0.2f))); // 0
+    BufPush(Scene.Mats, Mat(V3(0), V3(0.00f))); // null
     
-    BufPush(Scene.Mats, Mat(V3(0.3f))); // 1
+    BufPush(Scene.Mats, Mat(V3(0.6f))); // 1
     BufPush(Scene.Mats, Mat(V3(0.92f))); // 2
     BufPush(Scene.Mats, Mat(V3(0.9f), V3(10))); // 3
     BufPush(Scene.Mats, Mat(V3(0.9f, 0.6f, 0.2f))); // 4
     BufPush(Scene.Mats, Mat(V3(0.9f, 0.3f, 0.2f))); // 5
     
     BufPush(Scene.Planes, Plane(V3(0), YAxis(), 1));
-    BufPush(Scene.Spheres, Sphere(V3(2.5f, 3.0f, -2.0f), 0.5f, 3));
+    BufPush(Scene.Spheres, Sphere(V3(0.0f, 3.0f, 0.0f), 0.5f, 3));
     
+    printf("   loading assets ...\n");
     Assets.Dir = "../data/";
     LoadAsset("box.obj");
     LoadAsset("tiger.obj");
     LoadAsset("moose.obj");
     LoadAsset("bigmouth.obj");
     LoadAsset("icosphere.obj");
+    LoadAsset("sphinx.obj");
+    printf("   loading assets done\n");
     
-    InstantiateMesh("tiger", V3(0.0f, 0.65f, 0.0f), 2.0f, 
+    printf("   instantiating meshes ...\n");
+#if 0
+    InstantiateMesh("tiger", V3(0.0f, 0.35f, 0.5f), 1.0f, 
                     Quaternion(YAxis(), 1.2f*Pi32));
-    InstantiateMesh("moose", V3(2.0f, -0.1f, 0.0f), 2.0f, 
+    InstantiateMesh("moose", V3(2.0f, -0.05f, 0.5f), 1.0f, 
                     Quaternion(YAxis(), 0.0f*Pi32));
-    InstantiateMesh("bigmouth", V3(-2.0f, -0.1f, 0.0f), 2.0f, 
+    InstantiateMesh("bigmouth", V3(-2.0f, -0.05f, 0.5f), 1.0f, 
                     Quaternion(YAxis(), 1.0f*Pi32));
+#endif
+    InstantiateMesh("sphinx", V3(-0.1f, 0.0f, 0.0f), 0.8f,
+                    Quaternion(YAxis(), 0.8f*Pi32));
     
-    //InstantiateMesh("icosphere", V3(0.0f, 1.2f, 0.0f));
-    //InstantiateMesh("box", V3(1.7f, 0.0f, -0.3f), 0.5f);
+    printf("   instantiating meshes done\n");
     
+    printf("   partitioning polygons ...\n");
     TriangleCompares[0] = TriangleCompareX;
     TriangleCompares[1] = TriangleCompareY;
     TriangleCompares[2] = TriangleCompareZ;
     Scene.Root = PartitionTriangles(Scene.Triangles, BufLen(Scene.Triangles));
+    printf("   partitioning polygons done\n");
 }

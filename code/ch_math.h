@@ -2,6 +2,7 @@
 #include <math.h>
 #include <float.h>
 #include <stdint.h>
+#include <assert.h>
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -28,7 +29,7 @@ typedef bool b8;
 
 //NOTE(chen): put your own assert here
 #ifndef ASSERT
-#define ASSERT(X) CH_ASSERT(X)
+#define ASSERT(X) assert(X)
 #endif 
 
 struct v2
