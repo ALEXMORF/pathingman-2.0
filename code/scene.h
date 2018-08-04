@@ -16,6 +16,12 @@ struct sphere
     int MatIndex;
 };
 
+struct bucket_info
+{
+    f32 Cost;
+    int MiddleIndex;
+};
+
 struct bvh_node
 {
     aabb Bound;

@@ -99,7 +99,7 @@ int TriangleCompareZ(const void *A, const void *B)
     return 0;
 }
 
-void
+inline void
 InstantiateMesh(char *MeshName, v3 Offset, f32 Scale = 1.0f, quaternion Quat = Quaternion())
 {
     mesh *Mesh = Assets[MeshName];
@@ -124,10 +124,94 @@ InstantiateMesh(char *MeshName, v3 Offset, f32 Scale = 1.0f, quaternion Quat = Q
     }
 }
 
-bvh_node *
+inline bvh_node *
 AllocateBvhNode()
 {
     return (bvh_node *)calloc(1, sizeof(bvh_node));
+}
+
+inline aabb 
+Union(aabb Bound, triangle Triangle)
+{
+    Bound.Min = Min(Bound.Min, Triangle.E[0]);
+    Bound.Min = Min(Bound.Min, Triangle.E[1]);
+    Bound.Min = Min(Bound.Min, Triangle.E[2]);
+    Bound.Max = Max(Bound.Max, Triangle.E[0]);
+    Bound.Max = Max(Bound.Max, Triangle.E[1]);
+    Bound.Max = Max(Bound.Max, Triangle.E[2]);
+    
+    return Bound;
+}
+
+inline f32
+SurfaceArea(aabb Bound)
+{
+    if (Bound.Min.X == F32Max  &&
+        Bound.Min.Y == F32Max  &&
+        Bound.Min.Z == F32Max  &&
+        Bound.Max.X == -F32Max &&
+        Bound.Max.Y == -F32Max &&
+        Bound.Max.Z == -F32Max)
+    {
+        return 0.0f;
+    }
+    
+    v3 BoundDiff = Bound.Max - Bound.Min;
+    f32 FaceArea1 = BoundDiff.X * BoundDiff.Y;
+    f32 FaceArea2 = BoundDiff.X * BoundDiff.Z;
+    f32 FaceArea3 = BoundDiff.Y * BoundDiff.Z;
+    
+    return 2.0f * (FaceArea1 + FaceArea2 + FaceArea3);
+}
+
+inline int 
+SAHSplit(bvh_node *Node, triangle *Triangles, int TriangleCount, int DominantAxis)
+{
+    bucket_info CostBuckets[20] = {};
+    f32 AxisMin = Centroid(Triangles[0]).E[DominantAxis];
+    f32 AxisMax = Centroid(Triangles[TriangleCount-1]).E[DominantAxis];
+    f32 CentroidMaxDist = AxisMax - AxisMin;
+    f32 Interval = CentroidMaxDist / 19.0f;
+    for (int BucketIndex = 0; BucketIndex < ARRAY_COUNT(CostBuckets); ++BucketIndex)
+    {
+        f32 MiddlePoint = AxisMin + (f32)BucketIndex * Interval; 
+        
+        int MiddleIndex = 0;
+        while (Centroid(Triangles[MiddleIndex]).E[DominantAxis] <= MiddlePoint &&
+               MiddleIndex < TriangleCount)
+        {
+            MiddleIndex += 1;
+        }
+        
+        aabb LeftUnion = InitBound();
+        for (int TriIndex = 0; TriIndex < MiddleIndex; ++TriIndex)
+        {
+            LeftUnion = Union(LeftUnion, Triangles[TriIndex]);
+        }
+        
+        aabb RightUnion = InitBound();
+        for (int TriIndex = MiddleIndex; TriIndex < TriangleCount; ++TriIndex)
+        {
+            RightUnion = Union(RightUnion, Triangles[TriIndex]);
+        }
+        
+        int LeftTriCount = MiddleIndex;
+        int RightTriCount = TriangleCount-MiddleIndex;
+        CostBuckets[BucketIndex].Cost = 0.1f + (SurfaceArea(LeftUnion) * (f32)LeftTriCount + 
+                                                SurfaceArea(RightUnion) * (f32)RightTriCount) / SurfaceArea(Node->Bound);
+        CostBuckets[BucketIndex].MiddleIndex = MiddleIndex;
+    }
+    
+    int MinBucket = 0;
+    for (int BucketIndex = 1; BucketIndex < ARRAY_COUNT(CostBuckets); ++BucketIndex)
+    {
+        if (CostBuckets[MinBucket].Cost > CostBuckets[BucketIndex].Cost)
+        {
+            MinBucket = BucketIndex;
+        }
+    }
+    
+    return CostBuckets[MinBucket].MiddleIndex;
 }
 
 bvh_node *
@@ -138,17 +222,10 @@ PartitionTriangles(triangle *Triangles, int TriangleCount)
     Node->Bound = InitBound();
     for (int TriangleIndex = 0; TriangleIndex < TriangleCount; ++TriangleIndex)
     {
-        triangle Triangle = Triangles[TriangleIndex];
-        
-        Node->Bound.Min = Min(Node->Bound.Min, Triangle.E[0]);
-        Node->Bound.Min = Min(Node->Bound.Min, Triangle.E[1]);
-        Node->Bound.Min = Min(Node->Bound.Min, Triangle.E[2]);
-        Node->Bound.Max = Max(Node->Bound.Max, Triangle.E[0]);
-        Node->Bound.Max = Max(Node->Bound.Max, Triangle.E[1]);
-        Node->Bound.Max = Max(Node->Bound.Max, Triangle.E[2]);
+        Node->Bound = Union(Node->Bound, Triangles[TriangleIndex]);
     }
     
-    if (TriangleCount > 3) //keep partitioning
+    if (TriangleCount > 4) //keep partitioning
     {
         v3 BoundDiff = Node->Bound.Max - Node->Bound.Min;
         
@@ -168,10 +245,23 @@ PartitionTriangles(triangle *Triangles, int TriangleCount)
         qsort(Triangles, TriangleCount, sizeof(triangle), 
               TriangleCompares[DominantAxis]);
         
+#if 1
+        int Middle = SAHSplit(Node, Triangles, TriangleCount, DominantAxis);
+#else
         int Middle = TriangleCount / 2;
+#endif
         int Rest = TriangleCount - Middle;
-        Node->Left = PartitionTriangles(Triangles, Middle);
-        Node->Right = PartitionTriangles(Triangles + Middle, Rest);
+        
+        if (Middle != 0 && Rest != 0) //if there is still something to partition
+        {
+            Node->Left = PartitionTriangles(Triangles, Middle);
+            Node->Right = PartitionTriangles(Triangles + Middle, Rest);
+        }
+        else
+        {
+            Node->Primitives = Triangles;
+            Node->PrimitiveCount = TriangleCount;
+        }
     }
     else //stop and make it leaf node
     {
@@ -184,7 +274,7 @@ PartitionTriangles(triangle *Triangles, int TriangleCount)
 
 void InitScene()
 {
-    Scene.SampleCount = 64;
+    Scene.SampleCount = 8;
     
     Scene.CamLookAt = {0, 1.0f, 0.0f};
     Scene.CamRo = {0, 1.8f, -3.0f};
@@ -199,7 +289,7 @@ void InitScene()
     BufPush(Scene.Mats, Mat(V3(0.9f, 0.3f, 0.2f))); // 5
     
     BufPush(Scene.Planes, Plane(V3(0), YAxis(), 1));
-    BufPush(Scene.Spheres, Sphere(V3(0.0f, 3.0f, 0.0f), 0.5f, 3));
+    BufPush(Scene.Spheres, Sphere(V3(0.0f, 3.0f, -0.4f), 0.5f, 3));
     
     printf("   loading assets ...\n");
     Assets.Dir = "../data/";
@@ -213,7 +303,8 @@ void InitScene()
     
     printf("   instantiating meshes ...\n");
     //InstantiateMesh("tiger", V3(0.0f, 0.65f, 0.0f), 2.0f, Quaternion(YAxis(), 1.2f*Pi32));
-    InstantiateMesh("sphinx", V3(-0.1f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
+    InstantiateMesh("sphinx", V3(-1.0f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
+    InstantiateMesh("sphinx", V3(0.8f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
     
     printf("   instantiating meshes done\n");
     

@@ -2,12 +2,13 @@
 
  TODO:
  
+ . have a fallback split method after SAH
+. is middle index in SAH over by 1? investigate
+. linearize BVH
 . exploit MinT in BVH traversal
-. use SAH for BVH partitioning
 . faster custom rand() 
 . render config (window size, sample count)
- . linearize BVH
- 
+
 */
 
 #include "pathingman.h"
@@ -354,7 +355,7 @@ int main()
     printf("scene init took %.2f seconds\n", (f32)scene_t / (f32)CLOCKS_PER_SEC);
     
     clock_t render_t = clock();
-    printf("\nrendering scene ...\n");
+    printf("\nrendering scene (%d spp) ...\n", Scene.SampleCount);
     
     int TileWidth = 64;
     int TileHeight = 64;
