@@ -350,7 +350,7 @@ int main()
     printf("total triangle count: %d\n", BufLen(Scene.Triangles));
     
     scene_t = clock() - scene_t;
-    printf("scene init took %f seconds\n", (f32)scene_t / (f32)CLOCKS_PER_SEC);
+    printf("scene init took %.2f seconds\n", (f32)scene_t / (f32)CLOCKS_PER_SEC);
     
     clock_t render_t = clock();
     printf("\nrendering scene ...\n");
@@ -389,7 +389,16 @@ int main()
     }
     
     render_t = clock() - render_t;
-    printf("\nscene rendered in %f seconds\n", (f32)render_t / (f32)CLOCKS_PER_SEC);
+    f32 ElapsedTimeInS = (f32)render_t / (f32)CLOCKS_PER_SEC;
+    f32 ElapsedSeconds = fmodf(ElapsedTimeInS, 60.0f);
+    int ElapsedMinutes = Floor(ElapsedTimeInS / 60.0f);
+    
+    printf("\nscene rendered in ");
+    if (ElapsedMinutes != 0.0f)
+    {
+        printf("%d minute%s, ", ElapsedMinutes, ElapsedMinutes > 1? "s": "");
+    }
+    printf("%.2f seconds\n", ElapsedSeconds);
     
     CH_BMP::WriteImageToBMP("render.bmp", Image.Buffer, Image.Width, Image.Height);
     return 0;
