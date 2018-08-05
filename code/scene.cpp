@@ -320,7 +320,7 @@ FlattenBvh(bvh_node *Node)
 
 void InitScene()
 {
-    Scene.SampleCount = 256;
+    Scene.SampleCount = 2048;
     
     Scene.CamLookAt = {0, 1.0f, 0.0f};
     Scene.CamRo = {0, 1.8f, -3.0f};
@@ -345,16 +345,15 @@ void InitScene()
     LoadAsset("bigmouth.obj");
     LoadAsset("icosphere.obj");
     LoadAsset("sphinx.obj");
-    //LoadAsset("gaul.obj");
+    //LoadAsset("woman.obj");
     printf("   loading assets done\n");
     
     printf("   instantiating meshes ...\n");
-    //InstantiateMesh("tiger", V3(0.0f, 0.65f, 0.0f), 2.0f, Quaternion(YAxis(), 1.2f*Pi32));
-    
+    InstantiateMesh("tiger", V3(-1.0f, 0.65f, 0.0f), 2.0f, Quaternion(YAxis(), 1.0f*Pi32));
+    InstantiateMesh("sphinx", V3(0.0f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
     //InstantiateMesh("sphinx", V3(-1.0f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
     //InstantiateMesh("sphinx", V3(0.8f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
-    InstantiateMesh("sphinx", V3(0.0f, 0.0f, 0.0f), 0.8f, Quaternion(YAxis(), 0.8f*Pi32));
-    //InstantiateMesh("gaul", V3(0.0f, 0.0f, 0.0f), 2.0f, Quaternion(YAxis(), 0.8f*Pi32));
+    //InstantiateMesh("woman", V3(0), 0.8f, Quaternion(YAxis(), 0.5f*Pi32));
     
     printf("   instantiating meshes done\n");
     
