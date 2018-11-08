@@ -9,6 +9,7 @@ An unbiased pathtracer. Upgraded and it's much faster.
 0. Unbiased pathtracer: pure Monte Carlo integrator with lambert surface model.
 1. Image is rendered in 64x64 tiles, multithreaded.
 2. Primitives are partitioned by a bounding volume hierarchy, using Surface Area Heuristic splitting method.
+3. Supports environment lighting stored in HDR panoramic format. 
 
 ## Screenshots
 
