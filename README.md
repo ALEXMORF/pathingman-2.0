@@ -2,7 +2,7 @@
 
 An unbiased pathtracer. Upgraded and it's much faster.
 
-![pathingman](https://user-images.githubusercontent.com/16845654/43672771-b4675076-9769-11e8-9ca7-5e0e685ecd7a.png)
+![512spp_sphinx](https://user-images.githubusercontent.com/16845654/48231093-f796fb00-e361-11e8-9710-b7be9c944631.png)
 
 ## Internals
 
@@ -18,5 +18,10 @@ Hardware: Intel(R) Core(TM) i7-7700HQ CPU @ 2.80Hz
 
 Performance: 19 minutes and 48 seconds
 
-
 ![capture](https://user-images.githubusercontent.com/16845654/43681979-e06b2594-9818-11e8-84b5-d237e47ce272.JPG)
+
+Scene: 25577 triangles, 512 samples per pixel
+
+Performance: 2 minute and 47 seconds
+
+![512spp_sphinx](https://user-images.githubusercontent.com/16845654/48231093-f796fb00-e361-11e8-9710-b7be9c944631.png)
